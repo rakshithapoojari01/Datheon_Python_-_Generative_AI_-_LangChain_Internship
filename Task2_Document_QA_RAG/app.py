@@ -14,26 +14,284 @@ from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer
 
 
-# Load the API key from this task's own .env file
+# --------------------------------------------------
+# CONFIGURATION
+# --------------------------------------------------
+
 load_dotenv(Path(__file__).with_name(".env"))
 
 st.set_page_config(
     page_title="Document QA Assistant",
     page_icon="📚",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-st.title("📚 Document QA Assistant")
-st.caption("Ask questions about your documents using RAG and vector embeddings.")
+
+# --------------------------------------------------
+# SESSION STATE
+# --------------------------------------------------
+
+DEFAULTS = {
+    "chunks": None,
+    "faiss_index": None,
+    "document_name": None,
+    "page_count": 0,
+    "chunk_count": 0,
+    "last_search_time": None,
+    "last_generation_time": None,
+    "last_answer": None,
+    "last_sources": [],
+    "last_question": None,
+}
+
+for key, value in DEFAULTS.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
 
 
-# Load the embedding model once and reuse it
+# --------------------------------------------------
+# PREMIUM DASHBOARD STYLING
+# --------------------------------------------------
+
+st.markdown(
+    """
+    <style>
+    :root {
+        --navy: #111827;
+        --indigo: #4f46e5;
+        --purple: #7c3aed;
+        --muted: #64748b;
+        --border: #e2e8f0;
+    }
+
+    .stApp {
+        background: linear-gradient(
+            135deg, #f8faff 0%, #eef2ff 100%
+        );
+        color: #172554;
+    }
+
+    .block-container {
+    max-width: 1600px;
+    width: 94%;
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+    }
+    
+    h1 {
+        color: #172554 !important;
+        font-weight: 800 !important;
+        letter-spacing: -1px;
+    }
+
+    h2, h3 {
+        color: #243b6b !important;
+        font-weight: 700 !important;
+    }
+
+    [data-testid="stSidebar"] {
+        background: linear-gradient(
+            180deg, #10172a 0%, #211b4b 100%
+        );
+    }
+
+    [data-testid="stSidebar"] * {
+        color: #f1f5f9;
+    }
+
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3 {
+        color: #ffffff !important;
+    }
+
+    .hero-card {
+        background: linear-gradient(
+            120deg, #171e3c 0%, #3730a3 60%, #6d28d9 100%
+        );
+        padding: 30px;
+        border-radius: 22px;
+        color: white;
+        margin: 4px 0 24px 0;
+        box-shadow: 0 12px 35px rgba(49, 46, 129, 0.18);
+    }
+
+    .hero-eyebrow {
+        color: #c7d2fe;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+    }
+
+    .hero-title {
+        color: white !important;
+        font-size: 32px;
+        font-weight: 800;
+        line-height: 1.2;
+        margin-bottom: 10px;
+    }
+
+    .hero-description {
+        color: #e0e7ff;
+        font-size: 14px;
+        line-height: 1.7;
+        margin-bottom: 0;
+    }
+
+    .section-label {
+        color: #6366f1;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+    }
+
+    .section-description {
+        color: #64748b;
+        font-size: 14px;
+        margin-bottom: 18px;
+    }
+
+    [data-testid="stMetric"] {
+        background: rgba(255, 255, 255, 0.94);
+        border: 1px solid #e0e7ff;
+        border-radius: 16px;
+        padding: 17px 18px;
+        box-shadow: 0 5px 18px rgba(30, 41, 59, 0.04);
+    }
+
+    [data-testid="stMetricLabel"] {
+        color: #64748b;
+        font-weight: 600;
+    }
+
+    [data-testid="stMetricValue"] {
+        color: #312e81;
+        font-weight: 800;
+    }
+
+    .stButton > button {
+        background: linear-gradient(
+            135deg, #4f46e5, #7c3aed
+        );
+        color: white;
+        border: none;
+        border-radius: 10px;
+        min-height: 43px;
+        padding: 0.6rem 1.1rem;
+        font-weight: 700;
+        box-shadow: 0 5px 14px rgba(99, 102, 241, 0.18);
+        transition: all 0.2s ease;
+    }
+
+    .stButton > button:hover {
+        color: white;
+        border: none;
+        transform: translateY(-1px);
+        box-shadow: 0 8px 20px rgba(99, 102, 241, 0.28);
+    }
+
+    [data-testid="stTextInput"] input {
+        border: 1px solid #dbe3f3;
+        border-radius: 11px;
+        background: white;
+        color: #172554;
+        min-height: 45px;
+    }
+
+    [data-testid="stTextInput"] input:focus {
+        border-color: #818cf8;
+        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
+    }
+
+    [data-testid="stFileUploader"] {
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px dashed #a5b4fc;
+        border-radius: 14px;
+        padding: 12px;
+    }
+
+    [data-testid="stExpander"] {
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid #dbe3f3;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    [data-testid="stAlert"] {
+        border-radius: 12px;
+    }
+
+    [data-testid="stCaptionContainer"] {
+        color: #64748b;
+    }
+
+    hr {
+        border-color: #dbe3f3;
+    }
+
+    @media (max-width: 768px) {
+        .block-container {
+            padding: 1rem;
+        }
+
+        .hero-card {
+            padding: 22px;
+        }
+
+        .hero-title {
+            font-size: 25px;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# --------------------------------------------------
+# HEADER
+# --------------------------------------------------
+
+st.markdown(
+    """
+    <div class="hero-card">
+        <div class="hero-eyebrow">
+            AI DOCUMENT INTELLIGENCE
+        </div>
+        <div class="hero-title">
+            Document QA Assistant
+        </div>
+        <p class="hero-description">
+            Turn lengthy PDFs into useful answers.
+            Ask questions, explore relevant passages,
+            and trace answers back to their source pages.
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# --------------------------------------------------
+# EMBEDDING MODEL
+# --------------------------------------------------
+
 @st.cache_resource
 def load_embedding_model():
-    return SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+    return SentenceTransformer(
+        "sentence-transformers/all-MiniLM-L6-v2"
+    )
 
 
-# Extract text from each PDF page
+# --------------------------------------------------
+# PDF PROCESSING
+# --------------------------------------------------
+
 def extract_pdf_text(pdf_file):
     reader = PdfReader(pdf_file)
     pages = []
@@ -50,7 +308,6 @@ def extract_pdf_text(pdf_file):
     return pages
 
 
-# Split page text into overlapping chunks
 def split_into_chunks(pages, chunk_size=180, overlap=30):
     chunks = []
 
@@ -76,7 +333,6 @@ def split_into_chunks(pages, chunk_size=180, overlap=30):
     return chunks
 
 
-# Build a FAISS similarity-search index
 def build_faiss_index(chunks, model):
     texts = [chunk["text"] for chunk in chunks]
 
@@ -94,7 +350,6 @@ def build_faiss_index(chunks, model):
     return index
 
 
-# Retrieve the most relevant chunks for a question
 def retrieve_chunks(question, chunks, index, model, top_k=4):
     query_embedding = model.encode(
         [question],
@@ -106,7 +361,6 @@ def retrieve_chunks(question, chunks, index, model, top_k=4):
     k = min(top_k, len(chunks))
 
     scores, indices = index.search(query_embedding, k)
-
     results = []
 
     for score, idx in zip(scores[0], indices[0]):
@@ -119,7 +373,10 @@ def retrieve_chunks(question, chunks, index, model, top_k=4):
     return results
 
 
-# Generate an answer using Gemini
+# --------------------------------------------------
+# GEMINI ANSWER GENERATION
+# --------------------------------------------------
+
 def generate_answer(question, retrieved_chunks):
     api_key = os.getenv("GEMINI_API_KEY")
 
@@ -161,7 +418,6 @@ USER QUESTION:
 {question}
 """
 
-    
     print("Sending request to Gemini...", flush=True)
     start_time = time.perf_counter()
 
@@ -193,36 +449,98 @@ USER QUESTION:
         raise
 
 
-# Sidebar settings
+# --------------------------------------------------
+# SIDEBAR
+# --------------------------------------------------
+
 with st.sidebar:
-    st.header("⚙️ Settings")
-    top_k = st.slider("Retrieved chunks", 1, 8, 4)
-    st.info(
-        "PDF text extraction, embeddings, and similarity search "
-        "run locally. Gemini receives the question and retrieved text."
+    st.markdown("## ⚙️ Workspace")
+    st.caption("DOCUMENT QA SETTINGS")
+
+    top_k = st.slider(
+        "Retrieved source chunks",
+        min_value=1,
+        max_value=8,
+        value=4,
+        help="Number of document passages to retrieve for each question.",
+    )
+
+    st.divider()
+
+    st.markdown("### 🔎 How it works")
+    st.markdown(
+        """
+        1. **Upload** a PDF.
+        2. **Process** its text.
+        3. **Ask** a question.
+        4. **Explore** the source passages.
+        """
+    )
+
+    st.divider()
+
+    st.markdown("### 🛡️ Privacy")
+    st.caption(
+        "PDF extraction, embeddings, and similarity search run locally. "
+        "The question and retrieved passages are sent to Gemini "
+        "when you request an answer."
     )
 
 
-# Upload a PDF
+# --------------------------------------------------
+# DOCUMENT UPLOAD
+# --------------------------------------------------
+
+st.markdown(
+    '<div class="section-label">01 / DOCUMENT WORKSPACE</div>',
+    unsafe_allow_html=True,
+)
+
+st.subheader("Upload your document")
+st.markdown(
+    '<p class="section-description">'
+    'Upload a text-based PDF to build a searchable knowledge base.'
+    '</p>',
+    unsafe_allow_html=True,
+)
+
 uploaded_file = st.file_uploader(
-    "Upload a PDF document",
+    "Choose a PDF document",
     type=["pdf"],
+    help="Select a PDF containing text that can be extracted.",
 )
 
 if uploaded_file:
-    if (
-        "document_name" not in st.session_state
-        or st.session_state.document_name != uploaded_file.name
-    ):
-        st.session_state.pop("chunks", None)
-        st.session_state.pop("faiss_index", None)
+    if st.session_state.document_name != uploaded_file.name:
+        st.session_state.chunks = None
+        st.session_state.faiss_index = None
         st.session_state.document_name = uploaded_file.name
+        st.session_state.page_count = 0
+        st.session_state.chunk_count = 0
+        st.session_state.last_search_time = None
+        st.session_state.last_generation_time = None
+        st.session_state.last_answer = None
+        st.session_state.last_sources = []
+        st.session_state.last_question = None
 
-    st.success(f"Uploaded: {uploaded_file.name}")
+    file_col, action_col = st.columns([4, 1])
 
-    if st.button("Process document", type="primary"):
+    with file_col:
+        st.info(
+            f"📄 **{uploaded_file.name}** · "
+            f"{uploaded_file.size / (1024 * 1024):.2f} MB"
+        )
+
+    with action_col:
+        process_clicked = st.button(
+            "⚡ Process PDF",
+            type="primary",
+            use_container_width=True,
+        )
+
+    if process_clicked:
         try:
-            with st.spinner("Extracting text from the PDF..."):
+            with st.spinner("Extracting text from your PDF..."):
                 with tempfile.NamedTemporaryFile(
                     suffix=".pdf",
                     delete=False,
@@ -238,52 +556,125 @@ if uploaded_file:
             if not pages:
                 st.error(
                     "No selectable text was found. "
-                    "Scanned PDFs may require OCR."
+                    "This PDF may be scanned and require OCR."
                 )
             else:
-                with st.spinner("Creating embeddings and search index..."):
-                    chunks = split_into_chunks(pages)
+                chunks = split_into_chunks(pages)
 
-                    if not chunks:
-                        st.error("No usable text chunks were found.")
-                    else:
+                if not chunks:
+                    st.error("No usable text chunks were found.")
+                else:
+                    with st.spinner(
+                        "Generating embeddings and building the search index..."
+                    ):
                         model = load_embedding_model()
                         index = build_faiss_index(chunks, model)
 
-                        st.session_state.chunks = chunks
-                        st.session_state.faiss_index = index
+                    st.session_state.chunks = chunks
+                    st.session_state.faiss_index = index
+                    st.session_state.page_count = len(pages)
+                    st.session_state.chunk_count = len(chunks)
 
-                        st.success(
-                            f"Processed {len(pages)} pages into "
-                            f"{len(chunks)} searchable chunks."
-                        )
+                    st.session_state.last_search_time = None
+                    st.session_state.last_generation_time = None
+                    st.session_state.last_answer = None
+                    st.session_state.last_sources = []
+                    st.session_state.last_question = None
+
+                    st.success(
+                        f"Document processed successfully: "
+                        f"{len(pages)} text pages and "
+                        f"{len(chunks)} searchable chunks."
+                    )
 
         except Exception as error:
             st.error(f"Document processing failed: {error}")
 
 
-# Ask questions about the processed document
-if (
-    "chunks" in st.session_state
-    and "faiss_index" in st.session_state
-):
-    st.divider()
-    st.subheader("💬 Ask your document")
+# --------------------------------------------------
+# LIVE METRICS
+# --------------------------------------------------
 
-    question = st.text_input(
-        "Enter your question",
-        placeholder="What are the main points in this document?",
+st.markdown("---")
+st.markdown(
+    '<div class="section-label">02 / KNOWLEDGE BASE</div>',
+    unsafe_allow_html=True,
+)
+st.subheader("Document overview")
+
+metric1, metric2, metric3 = st.columns(3)
+
+is_processed = (
+    st.session_state.chunks is not None
+    and st.session_state.faiss_index is not None
+)
+
+with metric1:
+    st.metric(
+        "Document status",
+        "Ready" if is_processed else "Not processed",
     )
 
-    if st.button("Get answer", type="primary"):
+with metric2:
+    st.metric(
+        "Indexed chunks",
+        st.session_state.chunk_count if is_processed else 0,
+    )
+
+with metric3:
+    search_time = st.session_state.last_search_time
+    st.metric(
+        "Last search",
+        f"{search_time:.2f} s" if search_time is not None else "—",
+    )
+
+if is_processed:
+    st.caption(
+        f"Active document: {st.session_state.document_name} · "
+        f"{st.session_state.page_count} pages containing text"
+    )
+else:
+    st.caption(
+        "Upload and process a PDF to populate your document statistics."
+    )
+
+
+# --------------------------------------------------
+# QUESTION AND ANSWER WORKSPACE
+# --------------------------------------------------
+
+st.markdown("---")
+st.markdown(
+    '<div class="section-label">03 / ASK YOUR DOCUMENT</div>',
+    unsafe_allow_html=True,
+)
+st.subheader("What would you like to know?")
+st.markdown(
+    '<p class="section-description">'
+    'Ask a question in natural language. Answers are generated '
+    'from relevant passages retrieved from your document.'
+    '</p>',
+    unsafe_allow_html=True,
+)
+
+if is_processed:
+    question = st.text_input(
+        "Your question",
+        placeholder="e.g. What are the main findings in this document?",
+        key="question_input",
+    )
+
+    if st.button(
+        "✨ Generate answer",
+        type="primary",
+        use_container_width=False,
+    ):
         if not question.strip():
-            st.warning("Please enter a question.")
+            st.warning("Please enter a question first.")
         else:
             try:
-                # Measure local retrieval time separately
-                retrieval_start = time.perf_counter()
-
-                with st.spinner("Searching the document..."):
+                with st.spinner("Searching your document..."):
+                    retrieval_start = time.perf_counter()
                     model = load_embedding_model()
 
                     retrieved = retrieve_chunks(
@@ -294,68 +685,144 @@ if (
                         top_k=top_k,
                     )
 
-                retrieval_elapsed = (
-                    time.perf_counter() - retrieval_start
-                )
-
-                st.caption(
-                    f"Document search time: "
-                    f"{retrieval_elapsed:.2f} seconds"
-                )
-
-                # Measure Gemini generation time
-                with st.spinner("Generating an answer with Gemini..."):
-                    generation_start = time.perf_counter()
-
-                    answer = generate_answer(
-                        question,
-                        retrieved,
+                    retrieval_elapsed = (
+                        time.perf_counter() - retrieval_start
                     )
 
-                    generation_elapsed = (
-                        time.perf_counter() - generation_start
-                    )
+                st.session_state.last_search_time = retrieval_elapsed
+                st.session_state.last_question = question
+                st.session_state.last_sources = retrieved
+                st.session_state.last_generation_time = None
+                st.session_state.last_answer = None
 
-                st.caption(
-                    f"Gemini response time: "
-                    f"{generation_elapsed:.2f} seconds"
-                )
-
-                st.markdown("### Answer")
-                st.write(answer)
-
-                st.markdown("### 📖 Retrieved sources")
-
-                for number, chunk in enumerate(retrieved, start=1):
-                    with st.expander(
-                        f"Source {number} — Page {chunk['page']} "
-                        f"(similarity: {chunk['score']:.3f})"
-                    ):
-                        st.write(chunk["text"])
-
-                
-            except Exception as error:
-                error_text = str(error)
-
-                if "429" in error_text or "RESOURCE_EXHAUSTED" in error_text:
-                    st.error(
-                        "Gemini API quota exceeded. "
-                        "Please wait for your quota to reset before trying again."
-                    )
-                elif "503" in error_text or "UNAVAILABLE" in error_text:
+                if not retrieved:
                     st.warning(
-                        "Gemini is temporarily busy. Please try again later."
-                    )
-                elif "504" in error_text or "DEADLINE_EXCEEDED" in error_text:
-                    st.warning(
-                        "Gemini took too long to respond. Please try again later."
+                        "No relevant passages were found in this document."
                     )
                 else:
+                    with st.spinner(
+                        "Generating an answer with Gemini..."
+                    ):
+                        generation_start = time.perf_counter()
+
+                        answer = generate_answer(
+                            question,
+                            retrieved,
+                        )
+
+                        generation_elapsed = (
+                            time.perf_counter() - generation_start
+                        )
+
+                    st.session_state.last_answer = answer
+                    st.session_state.last_generation_time = (
+                        generation_elapsed
+                    )
+
+            except Exception as error:
+                error_text = str(error)
+                error_upper = error_text.upper()
+
+                if (
+                    "429" in error_text
+                    or "RESOURCE_EXHAUSTED" in error_upper
+                    or "QUOTA" in error_upper
+                ):
                     st.error(
-                        f"Could not answer the question: {error_text}"
-                    )         
+                        "🚦 **Gemini API quota exceeded**\n\n"
+                        "The current model's API quota is unavailable. "
+                        "Wait for the quota to reset before trying again. "
+                        "Your PDF index is still available."
+                    )
+
+                elif (
+                    "503" in error_text
+                    or "UNAVAILABLE" in error_upper
+                ):
+                    st.warning(
+                        "⏳ **Gemini is temporarily unavailable.** "
+                        "Please try again later. Your document index "
+                        "is still available."
+                    )
+
+                elif (
+                    "504" in error_text
+                    or "DEADLINE_EXCEEDED" in error_upper
+                    or "TIMEOUT" in error_upper
+                ):
+                    st.warning(
+                        "⌛ **Gemini took too long to respond.** "
+                        "Please try again later. Your document index "
+                        "is still available."
+                    )
+
+                elif "GEMINI_API_KEY" in error_text:
+                    st.error(
+                        "Gemini API key is missing. Check the local "
+                        "Task2_Document_QA_RAG/.env file."
+                    )
+
+                else:
+                    st.error(
+                        f"Could not generate an answer: {error_text}"
+                    )
+
+    # Show the last successful answer and its sources.
+    if st.session_state.last_answer:
+        st.markdown("### 💡 Answer")
+
+        answer_col, time_col = st.columns([4, 1])
+
+        with answer_col:
+            st.markdown(st.session_state.last_answer)
+
+        with time_col:
+            generation_time = st.session_state.last_generation_time
+            st.metric(
+                "Generation time",
+                f"{generation_time:.2f} s"
+                if generation_time is not None
+                else "—",
+            )
+
+    if st.session_state.last_sources:
+        st.markdown("### 📚 Retrieved source passages")
+        st.caption(
+            "Review these passages to understand which parts of "
+            "the document were retrieved for your question."
+        )
+
+        for number, chunk in enumerate(
+            st.session_state.last_sources,
+            start=1,
+        ):
+            with st.expander(
+                f"Source {number} · Page {chunk['page']} · "
+                f"Similarity {chunk['score']:.3f}"
+            ):
+                st.write(chunk["text"])
 
 else:
     st.info(
-        "Upload a PDF and select Process document to get started."
+        "📄 Upload a PDF and select **Process PDF** before asking questions."
     )
+
+
+# --------------------------------------------------
+# FOOTER
+# --------------------------------------------------
+
+st.markdown("---")
+st.markdown(
+    """
+    <div style="
+        text-align: center;
+        color: #94a3b8;
+        font-size: 12px;
+        padding: 12px 0;">
+        Document QA Assistant · Built with Streamlit, FAISS,
+        Sentence Transformers and Gemini
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
