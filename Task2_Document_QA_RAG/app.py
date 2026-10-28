@@ -332,26 +332,28 @@ if (
                         f"(similarity: {chunk['score']:.3f})"
                     ):
                         st.write(chunk["text"])
+
+                
             except Exception as error:
-               error_text = str(error)
+                error_text = str(error)
 
-    if "429" in error_text or "RESOURCE_EXHAUSTED" in error_text:
-        st.error(
-            "Gemini API quota exceeded. "
-            "Please wait for your quota to reset before trying again."
-        )
-    elif "503" in error_text or "UNAVAILABLE" in error_text:
-        st.warning(
-            "Gemini is temporarily busy. Please try again later."
-        )
-    elif "504" in error_text or "DEADLINE_EXCEEDED" in error_text:
-        st.warning(
-            "Gemini took too long to respond. Please try again later."
-        )
-    else:
-        st.error(f"Could not answer the question: {error_text}")
-
-            
+                if "429" in error_text or "RESOURCE_EXHAUSTED" in error_text:
+                    st.error(
+                        "Gemini API quota exceeded. "
+                        "Please wait for your quota to reset before trying again."
+                    )
+                elif "503" in error_text or "UNAVAILABLE" in error_text:
+                    st.warning(
+                        "Gemini is temporarily busy. Please try again later."
+                    )
+                elif "504" in error_text or "DEADLINE_EXCEEDED" in error_text:
+                    st.warning(
+                        "Gemini took too long to respond. Please try again later."
+                    )
+                else:
+                    st.error(
+                        f"Could not answer the question: {error_text}"
+                    )         
 
 else:
     st.info(
