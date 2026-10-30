@@ -1,50 +1,113 @@
-# Structured LLM Prompt Pipeline & JSON Extractor
+# Datheon – Python & Generative AI Internship
 
-## Overview
-This project extracts structured invoice information from text using Google's Gemini API and validates the extracted data with Pydantic.
+## About the Internship
 
-## Features
-- Extracts invoice number, vendor name, invoice date, total amount, and currency.
-- Uses Gemini to generate structured JSON output.
-- Validates invoice fields using Pydantic.
-- Rejects invalid dates and negative invoice amounts.
+This repository contains the projects and practical tasks completed as part of the Datheon Python, Generative AI, and LangChain Internship.
+
+The internship focuses on developing practical applications using Python, Large Language Models (LLMs), Retrieval-Augmented Generation (RAG), AI agents, and Streamlit.
+
+## Tasks Completed
+
+### Task 1 – LLM JSON Extractor
+- Extracts structured information from unstructured text.
+- Converts extracted information into JSON format.
+- Includes schema-based validation.
+
+### Task 2 – Document QA using RAG
+- Implements document-based question answering.
+- Uses Retrieval-Augmented Generation (RAG).
+- Retrieves relevant document information to answer user questions.
+
+### Task 3 – Multi-Tool Autonomous AI Agent
+- Develops an AI agent capable of using multiple tools.
+- Integrates tool-based functionality with an LLM.
+- Demonstrates multi-step task execution.
+
+### Task 4 – Streamlit AI Chatbot
+- Builds an interactive AI chatbot using Streamlit.
+- Integrates Google's Gemini model.
+- Supports conversational interactions and chat history.
+- Provides a customised user interface.
 
 ## Technologies Used
+
 - Python
-- Google Gemini API (`google-genai`)
-- Pydantic
-- python-dotenv
+- LangChain
+- Generative AI
+- Large Language Models (LLMs)
+- Google Gemini API
+- Retrieval-Augmented Generation (RAG)
+- Streamlit
+- JSON
+- Git and GitHub
 
-## Project Files
-- `main.py` — Extracts invoice data using Gemini.
-- `schemas.py` — Defines the invoice validation schema.
-- `test_schema.py` — Tests valid invoice data.
-- `test_invalid_invoice.py` — Tests invalid invoice data.
-- `.gitignore` — Excludes secrets and temporary files.
+## Repository Structure
 
-## Setup
+```text
+Datheon_Internship/
+│
+├── Task1_LLM_JSON_Extractor/
+│
+├── Task2_Document_QA_RAG/
+│
+├── Task3_Multi_Tool_AI_Agent/
+│
+├── Task4_Streamlit_AI_Chatbot/
+│
+├── .gitignore
+└── README.md
+```
 
-1. Install Python 3.11 or a compatible version.
-2. Install the dependencies:
+## Installation and Setup
 
-   ```bash
-   pip install google-genai python-dotenv pydantic
-   ```
+1. Clone the repository:
 
-3. Create a `.env` file in the project folder and add your own Gemini API key:
+```bash
+git clone https://github.com/rakshithapoojari01/Datheon_Python_-_Generative_AI_-_LangChain_Internship.git
+```
 
-   ```text
-   GEMINI_API_KEY=your_api_key_here
-   ```
+2. Navigate to the repository:
 
-4. Run the application:
+```bash
+cd Datheon_Python_-_Generative_AI_-_LangChain_Internship
+```
 
-   ```bash
-   python main.py
-   ```
+3. Create and activate a virtual environment:
 
-## Security
-Never commit your API key or `.env` file to GitHub.
+```bash
+python -m venv .venv
+```
 
-## Status
-Task 1 — implementation and basic validation tests completed.
+Windows PowerShell:
+
+```bash
+.\.venv\Scripts\Activate.ps1
+```
+
+4. Install the dependencies using the requirements file available inside the respective task folder.
+
+## Running the Projects
+
+Navigate to the required task folder and follow its README instructions.
+
+For Task 4:
+
+```bash
+cd Task4_Streamlit_AI_Chatbot
+pip install -r requirements.txt
+python -m streamlit run app.py
+```
+
+## API Configuration
+
+Some projects require API keys to access external AI services.
+
+- Store API keys in a local `.env` file.
+- Never upload API keys or secret credentials to GitHub.
+- Refer to the individual task README files for configuration instructions.
+
+## Author
+
+**Rakshitha Poojari**
+
+GitHub: [rakshithapoojari01](https://github.com/rakshithapoojari01)
